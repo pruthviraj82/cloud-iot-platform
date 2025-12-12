@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Device Manager - IoT Platform</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 0; padding: 20px; background: #f8f9fa; }
+        .header { display: flex; justify-content: space-between; align-items: center; background: white; padding: 15px 20px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        .nav-menu { background: #e9ecef; padding: 15px; border-radius: 10px; margin-bottom: 20px; display: flex; gap: 15px; }
+        .nav-menu a { padding: 8px 16px; text-decoration: none; color: #495057; background: white; border-radius: 5px; transition: all 0.3s; }
+        .nav-menu a:hover { background: #007bff; color: white; }
+        .logout { color: #dc3545; text-decoration: none; font-weight: bold; }
+        
+        .device-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .port-card, .connected-card { 
+            background: white; 
+            padding: 20px; 
+            border-radius: 10px; 
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            border-left: 4px solid #007bff;
+            margin-bottom: 15px;
+        }
+        .port-card.busy { border-left-color: #dc3545; }
+        .port-card.available { border-left-color: #28a745; }
+        
+        .status-badge { 
+            padding: 4px 8px; 
+            border-radius: 4px; 
+            font-size: 12px; 
+            font-weight: bold;
+        }
+        .status-available { background: #d4edda; color: #155724; }
+        .status-busy { background: #f8d7da; color: #721c24; }
+        .status-connected { background: #d1ecf1; color: #0c5460; }
+        
+        button { 
+            padding: 8px 16px; 
+            margin: 5px; 
+            border: none; 
+            border-radius: 4px; 
+            cursor: pointer; 
+            font-size: 14px;
+        }
+        .btn-connect { background: #28a745; color: white; }
+        .btn-disconnect { background: #dc3545; color: white; }
+        .btn-scan { background: #007bff; color: white; }
+        .btn-send { background: #6c757d; color: white; }
+        
+        .live-data { 
+            background: #f8f9fa; 
+            padding: 10px; 
+            border-radius: 5px; 
+            margin-top: 10px;
+            font-family: monospace;
+            font-size: 12px;
+            border: 1px solid #e9ecef;
+        }
+        
+        .command-input { 
+            width: 70%; 
+            padding: 8px; 
+            margin-right: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        
+        .command-section {
+            margin: 10px 0;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 5px;
+        }
+        
+        .device-stats {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin: 10px 0;
+        }
+        
+        .stat-item {
+            background: #e9ecef;
+            padding: 8px;
+            border-radius: 4px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🔌 Device Manager</h1>
+        <div>
+            <span>Welcome, {{ user.email }}</span> | 
+            <a href="{{ url_for('routes.logout') }}" class="logout">Logout</a>
+        </div>
+    </div>
+
+    <div class="nav-menu">
+        <a href="{{ url_for('routes.dashboard') }}">📊 Dashboard</a>
+        <a href="{{ url_for('routes.device_manager_page') }}">🔌 Device Manager</a>
+        <a href="{{ url_for('routes.ai_assistant') }}">🧠 AI Assistant</a>
+    </div>
+
+    <div class="device-grid">
+        <!-- Available Ports Section -->
+        <div>
+            <h2>🖥️ Available Serial Ports</h2>
+            <button class="btn-scan" onclick="scanPorts()">🔄 Scan Ports</button>
+            
+            {% for port in available_ports %}
+            <div class="port-card {{ port.status }}">
+                <h3>{{ port.device }}</h3>
+                <p><strong>Name:</strong> {{ port.name or 'Unknown' }}</p>
+                <p><strong>Manufacturer:</strong> {{ port.manufacturer or 'Unknown' }}</p>
+                <p><strong>Status:</strong> 
+                    <span class="status-badge status-{{ port.status }}">
+                        {{ port.status|upper }}
+                    </span>
+                </p>
+                
+                {% if port.status == 'available' %}
+                <button class="btn-connect" onclick="connectDevice('{{ port.device }}')">
+                    🔗 Connect
+                </button>
+                {% else %}
+                <button disabled style="background: #6c757d; color: white;">
+                    ⚠️ Busy
+                </button>
+                {% endif %}
+            </div>
+            {% else %}
+            <div class="port-card">
+                <h3>No Serial Ports Found</h3>
+                <p>Connect an Arduino or serial device to see available ports.</p>
+            </div>
+            {% endfor %}
+        </div>
+
+        <!-- Connected Devices Section -->
+        <div>
+            <h2>🔗 Connected Devices</h2>
+            
+            {% for device in connected_devices %}
+            <div class="connected-card">
+                <h3>{{ device.port }}</h3>
+                <div class="device-stats">
+                    <div class="stat-item">
+                        <strong>Connected</strong><br>
+                        {{ device.connected_at }}
+                    </div>
+                    <div class="stat-item">
+                        <strong>Data Points</strong><br>
+                        {{ device.data_count }}
+                    </div>
+                </div>
+                
+                <p><strong>Last Data:</strong> 
+                    <span id="data-{{ device.port|replace(' ', '') }}">
+                        {{ device.last_data or 'No data yet' }}
+                    </span>
+                </p>
+                
+                <div class="command-section">
+                    <input type="text" 
+                           class="command-input" 
+                           id="cmd-{{ device.port|replace(' ', '') }}" 
+                           placeholder="Send command (LED_ON, STATUS, etc.)">
+                    <button class="btn-send" onclick="sendCommand('{{ device.port }}')">📤 Send</button>
+                </div>
+                
+                <button class="btn-disconnect" onclick="disconnectDevice('{{ device.port }}')">
+                    🔌 Disconnect
+                </button>
+                
+                <div class="live-data" id="live-{{ device.port|replace(' ', '') }}">
+                    <strong>Live Data:</strong> Waiting for data...
+                </div>
+            </div>
+            {% else %}
+            <div class="connected-card">
+                <h3>No Devices Connected</h3>
+                <p>Connect to a device from the available ports list.</p>
+                <p><strong>Common Commands:</strong></p>
+                <ul>
+                    <li><code>LED_ON</code> - Turn LED on</li>
+                    <li><code>LED_OFF</code> - Turn LED off</li>
+                    <li><code>STATUS</code> - Get device status</li>
+                    <li><code>READ_TEMP</code> - Read temperature</li>
+                </ul>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <script>
+        // Scan for available ports
+        function scanPorts() {
+            fetch('/api/scan-ports')
+                .then(response => response.json())
+                .then(data => {
+                    alert('Ports scanned successfully!');
+                    location.reload();
+                })
+                .catch(error => {
+                    alert('Error scanning ports: ' + error);
+                });
+        }
+        
+        // Connect to a device
+        function connectDevice(portName) {
+            fetch('/api/connect-device', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ port: portName, baudrate: 9600 })
+            })
+            .then(response => response.json())
+            .then(data => {
+                alert(data.message);
+                if (data.success) {
+                    location.reload();
+                }
+            })
+            .catch(error => {
+                alert('Connection error: ' + error);
+            });
+        }
+        
+        // Disconnect from a device
+        function disconnectDevice(portName) {
+            if (!confirm('Are you sure you want to disconnect from ' + portName + '?')) {
+                return;
+            }
+            
+            fetch('/api/disconnect-device', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ port: portName })
+            })
+            .then(response => response.json())
+            .then(data => {
+                alert(data.message);
+                if (data.success) {
+                    location.reload();
+                }
+            })
+            .catch(error => {
+                alert('Disconnection error: ' + error);
+            });
+        }
+        
+        // Send command to device
+        function sendCommand(portName) {
+            const commandInput = document.getElementById(`cmd-${portName.replace(' ', '')}`);
+            const command = commandInput.value.trim();
+            
+            if (!command) {
+                alert('Please enter a command');
+                return;
+            }
+            
+            fetch('/api/send-command', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ port: portName, command: command })
+            })
+            .then(response => response.json())
+            .then(data => {
+                alert(data.message);
+                commandInput.value = '';
+            })
+            .catch(error => {
+                alert('Command error: ' + error);
+            });
+        }
+        
+        // Live data updates
+        function updateLiveData() {
+            fetch('/api/live-data')
+                .then(response => response.json())
+                .then(data => {
+                    data.forEach(device => {
+                        const liveElement = document.getElementById(`live-${device.port.replace(' ', '')}`);
+                        const dataElement = document.getElementById(`data-${device.port.replace(' ', '')}`);
+                        
+                        if (liveElement && device.last_data) {
+                            liveElement.innerHTML = `<strong>Live Data (${device.last_update}):</strong> ${device.last_data}`;
+                        }
+                        if (dataElement && device.last_data) {
+                            dataElement.textContent = device.last_data;
+                        }
+                    });
+                })
+                .catch(error => console.error('Error updating live data:', error));
+        }
+        
+        // Update live data every 2 seconds
+        setInterval(updateLiveData, 2000);
+        updateLiveData(); // Initial call
+        
+        // Auto-refresh ports every 10 seconds
+        setInterval(scanPorts, 10000);
+    </script>
+</body>
+</html>

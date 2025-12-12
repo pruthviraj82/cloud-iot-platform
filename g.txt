@@ -1,0 +1,8 @@
+# Reset database
+python reset_database.py
+
+# Run data generator (Terminal 1)
+python device/reader.py
+
+# Run web app (Terminal 2)  
+python run.py

@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>AI IoT Assistant</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 0; padding: 20px; background: #f8f9fa; }
+        .assistant-container { max-width: 1200px; margin: 0 auto; }
+        .header { display: flex; justify-content: space-between; align-items: center; background: white; padding: 15px 20px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        .nav-menu { background: #e9ecef; padding: 15px; border-radius: 10px; margin-bottom: 20px; display: flex; gap: 15px; }
+        .nav-menu a { padding: 8px 16px; text-decoration: none; color: #495057; background: white; border-radius: 5px; transition: all 0.3s; }
+        .nav-menu a:hover { background: #007bff; color: white; }
+        .logout { color: #dc3545; text-decoration: none; font-weight: bold; }
+        
+        .chat-area { background: white; padding: 25px; border-radius: 15px; margin-bottom: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .query-form { display: flex; gap: 12px; margin-bottom: 20px; }
+        .query-input { flex: 1; padding: 15px; border: 2px solid #e9ecef; border-radius: 10px; font-size: 16px; transition: border-color 0.3s; }
+        .query-input:focus { border-color: #007bff; outline: none; }
+        .sensor-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; margin-top: 20px; }
+        .sensor-block { background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); border-left: 4px solid #007bff; }
+        .ai-response { background: #e3f2fd; padding: 20px; border-radius: 12px; margin: 15px 0; white-space: pre-line; border-left: 4px solid #2196f3; line-height: 1.6; }
+        button { padding: 15px 25px; background: #007bff; color: white; border: none; border-radius: 10px; cursor: pointer; font-size: 16px; transition: background 0.3s; }
+        button:hover { background: #0056b3; }
+        .example-queries { background: #fff3cd; padding: 20px; border-radius: 10px; margin: 20px 0; border-left: 4px solid #ffc107; }
+        .device-status { background: #e7f3ff; padding: 15px; border-radius: 8px; margin: 15px 0; }
+        .sample-data { margin-top: 10px; }
+        pre { background: #f8f9fa; padding: 10px; border-radius: 5px; overflow-x: auto; font-size: 12px; }
+    </style>
+</head>
+<body>
+    <div class="assistant-container">
+        <div class="header">
+            <h1>🧠 AI IoT Assistant</h1>
+            <div>
+                <span>Welcome, {{ user.email }}</span> | 
+                <a href="{{ url_for('routes.logout') }}" class="logout">Logout</a>
+            </div>
+        </div>
+
+        <div class="nav-menu">
+            <a href="{{ url_for('routes.dashboard') }}">📊 Dashboard</a>
+            <a href="{{ url_for('routes.device_manager_page') }}">🔌 Device Manager</a>
+            <a href="{{ url_for('routes.ai_assistant') }}">🧠 AI Assistant</a>
+        </div>
+        
+        <p style="font-size: 16px; color: #666;">I understand your IoT project and can help you analyze sensor data naturally!</p>
+        
+        <!-- Example Queries -->
+        <div class="example-queries">
+            <strong>💡 Try asking me:</strong><br><br>
+            • "Show me temperature from yesterday"<br>
+            • "Connect to COM3"<br>
+            • "Predict sensor values for next hour"<br>
+            • "Any anomalies in the data?"<br>
+            • "Generate weekly report"<br>
+            • "How is the vehicle performing?"<br>
+            • "Show device status"<br>
+            • "Heart rate analysis"
+        </div>
+        
+        <!-- Device Status -->
+        <div class="device-status">
+            <h3>🔌 Current Device Status</h3>
+            <p><strong>Available Ports:</strong> {{ available_ports|length }} | <strong>Connected Devices:</strong> {{ connected_devices|length }}</p>
+            {% if connected_devices %}
+            <p><strong>Connected:</strong> 
+                {% for device in connected_devices %}
+                {{ device.port }}{% if not loop.last %}, {% endif %}
+                {% endfor %}
+            </p>
+            {% endif %}
+        </div>
+        
+        <!-- AI Chat Interface -->
+        <div class="chat-area">
+            <form method="POST" class="query-form">
+                <input type="text" name="query" class="query-input" 
+                       placeholder="Ask me anything about your IoT sensors and data..." 
+                       value="{{ request.form.query if request.method == 'POST' }}" 
+                       required>
+                <button type="submit">Ask AI 🤖</button>
+            </form>
+            
+            {% if ai_response %}
+            <div class="ai-response">
+                <strong>🤖 AI Assistant:</strong><br><br>
+                {{ ai_response }}
+            </div>
+            {% endif %}
+        </div>
+        
+        <!-- Multi-Sensor Display -->
+        <h2>📊 Detected Sensors</h2>
+        <div class="sensor-grid">
+            {% for sensor in sensor_blocks %}
+            <div class="sensor-block">
+                <h3>{{ sensor.sensor_name }}</h3>
+                <p><strong>File:</strong> {{ sensor.filename }}</p>
+                <p><strong>Type:</strong> {{ sensor.sensor_type }}</p>
+                <p><strong>Unit:</strong> {{ sensor.unit }}</p>
+                <p><strong>Readings:</strong> {{ sensor.total_readings }}</p>
+                <div class="sample-data">
+                    <strong>Sample Data:</strong>
+                    <pre>{{ sensor.data_sample }}</pre>
+                </div>
+            </div>
+            {% else %}
+            <div class="sensor-block">
+                <h3>📡 No Sensor Data Found</h3>
+                <p>Place your sensor data files in the <code>/data</code> folder</p>
+                <p><strong>Supported formats:</strong> CSV, JSON, TXT</p>
+                <p><strong>Demo sensors are currently active</strong></p>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</body>
+</html>

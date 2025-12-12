@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Dashboard - IoT Platform</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 0; padding: 20px; background: #f8f9fa; }
+        .header { display: flex; justify-content: space-between; align-items: center; background: white; padding: 15px 20px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        .nav-menu { background: #e9ecef; padding: 15px; border-radius: 10px; margin-bottom: 20px; display: flex; gap: 15px; }
+        .nav-menu a { padding: 8px 16px; text-decoration: none; color: #495057; background: white; border-radius: 5px; transition: all 0.3s; }
+        .nav-menu a:hover { background: #007bff; color: white; }
+        .card { background: white; padding: 20px; margin: 15px 0; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        .logout { color: #dc3545; text-decoration: none; font-weight: bold; }
+        .dashboard-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .sensor-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px; margin-top: 20px; }
+        .sensor-card { background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); border-left: 4px solid #007bff; }
+        .time-selector { margin: 15px 0; }
+        .time-selector select { padding: 8px; border-radius: 5px; border: 1px solid #ddd; }
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin: 15px 0; }
+        .stat-card { background: #f8f9fa; padding: 15px; border-radius: 8px; text-align: center; border-left: 4px solid #28a745; }
+        .device-status { background: #e7f3ff; padding: 10px; border-radius: 5px; margin: 10px 0; }
+        .chart-container { position: relative; height: 400px; width: 100%; }
+        .live-indicator { background: #d4edda; color: #155724; padding: 8px 12px; border-radius: 20px; font-size: 12px; font-weight: bold; display: inline-flex; align-items: center; gap: 5px; }
+        .file-indicator { background: #fff3cd; color: #856404; padding: 8px 12px; border-radius: 20px; font-size: 12px; font-weight: bold; display: inline-flex; align-items: center; gap: 5px; }
+        .data-source-badge { margin-left: 10px; }
+        .live-data-panel { background: #e8f5e8; padding: 15px; border-radius: 8px; margin: 10px 0; border-left: 4px solid #28a745; }
+        .refresh-btn { background: #17a2b8; color: white; border: none; padding: 8px 15px; border-radius: 5px; cursor: pointer; margin-left: 10px; }
+        .refresh-btn:hover { background: #138496; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h2>📊 IoT Dashboard - Welcome, {{ username }}</h2>
+        <a href="{{ url_for('routes.logout') }}" class="logout">🚪 Logout</a>
+    </div>
+
+    <div class="nav-menu">
+        <a href="{{ url_for('routes.dashboard') }}">📊 Dashboard</a>
+        <a href="{{ url_for('routes.device_manager_page') }}">🔌 Device Manager</a>
+        <a href="{{ url_for('routes.ai_assistant') }}">🧠 AI Assistant</a>
+    </div>
+
+    <!-- Data Source Indicator -->
+    <div class="card">
+        <h3>
+            🎯 Active Sensor: {{ current_sensor.name }}
+            {% if data_source == 'arduino' %}
+                <span class="live-indicator data-source-badge">
+                    🔴 LIVE Arduino Data
+                </span>
+            {% else %}
+                <span class="file-indicator data-source-badge">
+                    📁 File Data (No Arduino)
+                </span>
+            {% endif %}
+        </h3>
+        <p>
+            <strong>Type:</strong> {{ current_sensor.type }} | 
+            <strong>Unit:</strong> {{ current_sensor.unit }} | 
+            <strong>Source:</strong> 
+            {% if data_source == 'arduino' %}
+                Connected Arduino Device
+            {% else %}
+                {{ current_sensor.filename }}
+            {% endif %}
+            <button class="refresh-btn" onclick="refreshDashboard()">🔄 Refresh</button>
+        </p>
+    </div>
+
+    <!-- Live Data Panel (Only shown when Arduino is connected) -->
+    {% if data_source == 'arduino' and live_data %}
+    <div class="live-data-panel">
+        <h4>📡 Live Arduino Data Stream</h4>
+        <div class="sensor-grid">
+            {% for data in live_data %}
+            <div class="sensor-card">
+                <h5>
+                    {% if data.sensor == 'temperature' %}🌡️ Temperature
+                    {% elif data.sensor == 'humidity' %}💧 Humidity
+                    {% elif data.sensor == 'heart_rate' %}❤️ Heart Rate
+                    {% else %}📊 Raw Data{% endif %}
+                </h5>
+                <p><strong>Value:</strong> 
+                    {% if data.sensor == 'raw' %}
+                        {{ data.display_value }}
+                    {% else %}
+                        {{ data.value }} {{ data.unit }}
+                    {% endif %}
+                </p>
+                <p><strong>Port:</strong> {{ data.port }}</p>
+                <p><strong>Time:</strong> {{ data.timestamp.strftime('%H:%M:%S') if data.timestamp else 'Just now' }}</p>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="dashboard-grid">
+        <!-- Left Column -->
+        <div>
+            <!-- Time Range Selector -->
+            <div class="card">
+                <h3>⏰ Time Range</h3>
+                <div class="time-selector">
+                    <select onchange="window.location.href='?range=' + this.value">
+                        <option value="1hour" {% if time_range == '1hour' %}selected{% endif %}>Last Hour</option>
+                        <option value="6hours" {% if time_range == '6hours' %}selected{% endif %}>Last 6 Hours</option>
+                        <option value="1day" {% if time_range == '1day' %}selected{% endif %}>Last 24 Hours</option>
+                        <option value="1week" {% if time_range == '1week' %}selected{% endif %}>Last Week</option>
+                        <option value="1month" {% if time_range == '1month' %}selected{% endif %}>Last Month</option>
+                    </select>
+                </div>
+                {% if data_source == 'arduino' %}
+                <p style="color: #28a745; font-size: 12px; margin-top: 5px;">
+                    ⚡ Live data updates automatically every 5 seconds
+                </p>
+                {% endif %}
+            </div>
+
+            <!-- Prediction Card -->
+            <div class="card">
+                <h3>🔮 AI Prediction</h3>
+                <p><strong>Predicted Next Value:</strong> <span style="font-size: 24px; color: #007bff;">{{ predicted }}</span> {{ current_sensor.unit }}</p>
+                {% if data_source == 'arduino' %}
+                <p style="color: #28a745; font-size: 12px;">
+                    ✅ Based on live Arduino data stream
+                </p>
+                {% else %}
+                <p style="color: #6c757d; font-size: 12px;">
+                    📁 Based on historical file data
+                </p>
+                {% endif %}
+            </div>
+
+            <!-- Statistics -->
+            {% if summary_stats %}
+            <div class="card">
+                <h3>📈 Statistics</h3>
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div style="font-size: 12px; color: #6c757d;">Average</div>
+                        <div style="font-size: 18px; font-weight: bold;">{{ summary_stats.mean }}</div>
+                    </div>
+                    <div class="stat-card">
+                        <div style="font-size: 12px; color: #6c757d;">Min</div>
+                        <div style="font-size: 18px; font-weight: bold;">{{ summary_stats.min }}</div>
+                    </div>
+                    <div class="stat-card">
+                        <div style="font-size: 12px; color: #6c757d;">Max</div>
+                        <div style="font-size: 18px; font-weight: bold;">{{ summary_stats.max }}</div>
+                    </div>
+                    <div class="stat-card">
+                        <div style="font-size: 12px; color: #6c757d;">Trend</div>
+                        <div style="font-size: 18px; font-weight: bold; color: {% if summary_stats.trend == 'increasing' or summary_stats.trend == 'live' %}#28a745{% else %}#dc3545{% endif %};">
+                            {% if summary_stats.trend == 'live' %}LIVE{% else %}{{ summary_stats.trend }}{% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% if data_source == 'arduino' %}
+                <p style="color: #28a745; font-size: 12px; margin-top: 10px;">
+                    📊 Statistics calculated from live Arduino stream
+                </p>
+                {% endif %}
+            </div>
+            {% endif %}
+
+            <!-- Device Status -->
+            <div class="card">
+                <h3>🔌 Device Status</h3>
+                <div class="device-status">
+                    <p><strong>Available Ports:</strong> {{ available_ports|length }}</p>
+                    <p><strong>Connected Devices:</strong> {{ connected_devices|length }}</p>
+                    {% if connected_devices %}
+                    <p><strong>Active Ports:</strong> 
+                        {% for device in connected_devices %}
+                        {{ device.port }}{% if not loop.last %}, {% endif %}
+                        {% endfor %}
+                    </p>
+                    <p style="color: #28a745;">✅ Arduino data is being displayed on dashboard</p>
+                    {% else %}
+                    <p style="color: #dc3545;">❌ No Arduino connected - showing file data</p>
+                    {% endif %}
+                    <a href="{{ url_for('routes.device_manager_page') }}" style="color: #007bff; text-decoration: none;">→ Manage Devices</a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Column -->
+        <div>
+            <!-- Chart -->
+            <div class="card">
+                <h3>
+                    📊 Sensor Data Chart 
+                    {% if data_source == 'arduino' %}
+                    <span style="color: #28a745; font-size: 14px;">(Live Arduino Data)</span>
+                    {% else %}
+                    <span style="color: #6c757d; font-size: 14px;">(File Data)</span>
+                    {% endif %}
+                </h3>
+                <div class="chart-container">
+                    <canvas id="chart"></canvas>
+                </div>
+                <div id="chart-error" style="display: none; text-align: center; color: #dc3545; padding: 10px;">
+                    ⚠️ Chart failed to load. Check browser console for details.
+                </div>
+                {% if data_source == 'arduino' %}
+                <div id="live-update-indicator" style="text-align: center; color: #28a745; font-size: 12px; margin-top: 10px;">
+                    🔄 Live updates enabled - Next update in <span id="countdown">5</span>s
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Active Sensors -->
+            <div class="card">
+                <h3>📡 Active Sensors</h3>
+                <div class="sensor-grid">
+                    {% for sensor in active_sensors %}
+                    <div class="sensor-card">
+                        <h4>{{ sensor.sensor_name }}</h4>
+                        <p><strong>Type:</strong> {{ sensor.sensor_type }}</p>
+                        <p><strong>Readings:</strong> {{ sensor.total_readings }}</p>
+                        <p><strong>Unit:</strong> {{ sensor.unit }}</p>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        // Ensure data is properly formatted
+        const labels = {{ timestamps | tojson }};
+        const dataValues = {{ values | tojson }};
+        const dataSource = "{{ data_source }}";
+        
+        console.log('Chart Data - Labels:', labels);
+        console.log('Chart Data - Values:', dataValues);
+        console.log('Data Source:', dataSource);
+        
+        let chart = null;
+        
+        // Create chart with error handling
+        function createChart() {
+            try {
+                const ctx = document.getElementById('chart').getContext('2d');
+                
+                if (chart) {
+                    chart.destroy();
+                }
+                
+                chart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: "{{ current_sensor.name }} ({{ current_sensor.unit }})",
+                            data: dataValues,
+                            borderColor: dataSource === 'arduino' ? '#28a745' : '#007bff',
+                            backgroundColor: dataSource === 'arduino' ? 'rgba(40, 167, 69, 0.1)' : 'rgba(0, 123, 255, 0.1)',
+                            borderWidth: 3,
+                            fill: true,
+                            tension: 0.4,
+                            pointBackgroundColor: dataSource === 'arduino' ? '#28a745' : '#007bff',
+                            pointBorderColor: '#ffffff',
+                            pointBorderWidth: 2,
+                            pointRadius: 4,
+                            pointHoverRadius: 6
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                display: true,
+                                position: 'top'
+                            },
+                            tooltip: {
+                                mode: 'index',
+                                intersect: false
+                            }
+                        },
+                        scales: {
+                            y: {
+                                beginAtZero: false,
+                                title: {
+                                    display: true,
+                                    text: '{{ current_sensor.unit }}'
+                                },
+                                grid: {
+                                    color: 'rgba(0,0,0,0.1)'
+                                }
+                            },
+                            x: {
+                                title: {
+                                    display: true,
+                                    text: 'Time'
+                                },
+                                grid: {
+                                    color: 'rgba(0,0,0,0.1)'
+                                }
+                            }
+                        },
+                        interaction: {
+                            intersect: false,
+                            mode: 'nearest'
+                        }
+                    }
+                });
+                
+                console.log('✅ Chart created successfully!');
+                document.getElementById('chart-error').style.display = 'none';
+            } catch (error) {
+                console.error('❌ Chart creation failed:', error);
+                document.getElementById('chart-error').style.display = 'block';
+            }
+        }
+        
+        // Initial chart creation
+        createChart();
+        
+        // Live data updates for Arduino
+        let countdown = 5;
+        let countdownInterval;
+        
+        function startLiveUpdates() {
+            if (dataSource === 'arduino') {
+                countdownInterval = setInterval(() => {
+                    countdown--;
+                    document.getElementById('countdown').textContent = countdown;
+                    
+                    if (countdown <= 0) {
+                        updateLiveData();
+                        countdown = 5;
+                    }
+                }, 1000);
+            }
+        }
+        
+        function updateLiveData() {
+            if (dataSource === 'arduino') {
+                fetch('/api/dashboard-live-data')
+                    .then(response => response.json())
+                    .then(data => {
+                        console.log('Live data update:', data);
+                        // For now, just refresh the page to get updated data
+                        // In a more advanced version, we would update the chart dynamically
+                        refreshDashboard();
+                    })
+                    .catch(error => {
+                        console.error('Error updating live data:', error);
+                    });
+            }
+        }
+        
+        function refreshDashboard() {
+            window.location.reload();
+        }
+        
+        // Start live updates if Arduino is connected
+        if (dataSource === 'arduino') {
+            startLiveUpdates();
+        }
+        
+        // Cleanup on page unload
+        window.addEventListener('beforeunload', function() {
+            if (countdownInterval) {
+                clearInterval(countdownInterval);
+            }
+        });
+    </script>
+</body>
+</html>

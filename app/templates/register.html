@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Register - IoT Platform</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 400px; margin: 100px auto; padding: 20px; background: #f5f5f5; }
+        .register-container { background: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        input { width: 100%; padding: 12px; margin: 8px 0; border: 1px solid #ddd; border-radius: 5px; box-sizing: border-box; }
+        button { width: 100%; padding: 12px; background: #28a745; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 16px; }
+        button:hover { background: #218838; }
+        .flash { padding: 10px; margin: 10px 0; border-radius: 5px; }
+        .error { background: #ffebee; color: #c62828; border: 1px solid #f5c6cb; }
+        .success { background: #e8f5e8; color: #2e7d32; border: 1px solid #c3e6cb; }
+        a { color: #007bff; text-decoration: none; }
+        h2 { text-align: center; color: #333; margin-bottom: 20px; }
+    </style>
+</head>
+<body>
+    <div class="register-container">
+        <h2>📝 Create Account</h2>
+        
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="flash {{ category }}">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+        
+        <form method="POST">
+            <input type="email" name="email" placeholder="📧 Email" required>
+            <br>
+            <input type="password" name="password" placeholder="🔒 Password" required>
+            <br><br>
+            <button type="submit">Register</button>
+        </form>
+        
+        <p style="text-align: center; margin-top: 20px;">Already have an account? <a href="{{ url_for('routes.login') }}">Login here</a></p>
+    </div>
+</body>
+</html>
