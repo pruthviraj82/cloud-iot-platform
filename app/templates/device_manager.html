@@ -105,6 +105,7 @@
         <div>
             <h2>🖥️ Available Serial Ports</h2>
             <button class="btn-scan" onclick="scanPorts()">🔄 Scan Ports</button>
+            <button class="btn-connect" onclick="startWebSerial()" style="margin-left:10px;">🧭 Connect via Browser</button>
             
             {% for port in available_ports %}
             <div class="port-card {{ port.status }}">
@@ -192,6 +193,8 @@
     </div>
 
     <script>
+        const CSRF_TOKEN = '{{ csrf_token }}';
+
         // Scan for available ports
         function scanPorts() {
             fetch('/api/scan-ports')
@@ -209,7 +212,7 @@
         function connectDevice(portName) {
             fetch('/api/connect-device', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': CSRF_TOKEN },
                 body: JSON.stringify({ port: portName, baudrate: 9600 })
             })
             .then(response => response.json())
@@ -232,7 +235,7 @@
             
             fetch('/api/disconnect-device', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': CSRF_TOKEN },
                 body: JSON.stringify({ port: portName })
             })
             .then(response => response.json())
@@ -259,7 +262,7 @@
             
             fetch('/api/send-command', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': CSRF_TOKEN },
                 body: JSON.stringify({ port: portName, command: command })
             })
             .then(response => response.json())
@@ -298,6 +301,71 @@
         
         // Auto-refresh ports every 10 seconds
         setInterval(scanPorts, 10000);
+    </script>
+
+    <script>
+        // Web Serial: request port and forward lines to server
+        async function startWebSerial() {
+            if (!('serial' in navigator)) {
+                alert('Web Serial API not supported in this browser. Use Chrome/Edge on HTTPS or localhost.');
+                return;
+            }
+
+            try {
+                // server endpoint (same-origin)
+                const serverUrl = '/api/forward-serial';
+
+                // Ask user to pick a serial port
+                const port = await navigator.serial.requestPort();
+                const info = port.getInfo ? port.getInfo() : {};
+
+                // Ask for baud rate (simple prompt fallback)
+                let baud = 9600;
+                const b = prompt('Baud rate (default 9600):', '9600');
+                if (b) baud = parseInt(b) || 9600;
+
+                await port.open({ baudRate: baud });
+
+                const textDecoder = new TextDecoderStream();
+                const readableStreamClosed = port.readable.pipeTo(textDecoder.writable);
+                const reader = textDecoder.readable.getReader();
+
+                const portId = `web-${info.usbVendorId || 'unknown'}-${info.usbProductId || 'unknown'}`;
+
+                // Inform user
+                alert('Connected to device. Forwarding lines to server...');
+
+                // Read loop
+                while (true) {
+                    const { value, done } = await reader.read();
+                    if (done) break;
+                    const line = (value || '').trim();
+                    if (!line) continue;
+
+                    // Forward using same-origin credentials (session)
+                        fetch(serverUrl, {
+                            method: 'POST',
+                            credentials: 'same-origin',
+                            headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': CSRF_TOKEN },
+                            body: JSON.stringify({ port: portId, data: line })
+                        }).then(resp => {
+                        if (!resp.ok) console.error('Forward failed', resp.status, resp.statusText);
+                    }).catch(err => console.error('Forward error', err));
+
+                    // Update live UI if element exists
+                    const safeId = portId.replace(/[^a-zA-Z0-9_-]/g, '');
+                    const liveEl = document.getElementById('live-' + safeId);
+                    if (liveEl) liveEl.innerHTML = `<strong>Live Data:</strong> ${line}`;
+                }
+
+                reader.releaseLock();
+                await readableStreamClosed.catch(() => {});
+                await port.close();
+            } catch (err) {
+                console.error('Web Serial error', err);
+                alert('Web Serial error: ' + err);
+            }
+        }
     </script>
 </body>
 </html>

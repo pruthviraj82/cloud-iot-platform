@@ -356,8 +356,14 @@ def api_forward_serial():
     """
     token = request.headers.get('X-DEVICE-AGENT-TOKEN')
     expected = os.getenv('DEVICE_AGENT_TOKEN')
-    if not expected or token != expected:
-        return jsonify({'success': False, 'message': 'Unauthorized'}), 401
+
+    # Allow either a logged-in session or a valid agent token
+    user_id = None
+    if current_user and getattr(current_user, 'is_authenticated', False):
+        user_id = current_user.id
+    else:
+        if not expected or token != expected:
+            return jsonify({'success': False, 'message': 'Unauthorized'}), 401
 
     try:
         payload = request.get_json(force=True)
@@ -389,6 +395,36 @@ def api_forward_serial():
         device_manager.process_incoming_data(port, data_line)
     except Exception as e:
         print(f"Error processing forwarded data: {e}")
+
+    # Persist forwarded data to a per-user CSV (or global if no user)
+    try:
+        if user_id:
+            csv_file = os.path.join(DATA_DIR, f"user_{user_id}_serial.csv")
+        else:
+            csv_file = os.path.join(DATA_DIR, "sensor_data.csv")
+
+        # Append row: timestamp, port, data
+        with open(csv_file, 'a', newline='', encoding='utf-8') as f:
+            # Create header if empty
+            if os.path.getsize(csv_file) == 0:
+                f.write('timestamp,port,data\n')
+            ts = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            # Escape quotes/newlines
+            safe_data = data_line.replace('"', '""').replace('\n', ' ')
+            f.write(f'"{ts}","{port}","{safe_data}"\n')
+    except Exception as e:
+        print(f"Error persisting forwarded data: {e}")
+
+    # If we have a logged-in user, ensure a DeviceConnection record exists
+    if user_id:
+        try:
+            conn = DeviceConnection.query.filter_by(user_id=user_id, port_name=port, status='connected').first()
+            if not conn:
+                conn = DeviceConnection(user_id=user_id, port_name=port, baudrate=None, status='connected')
+                db.session.add(conn)
+                db.session.commit()
+        except Exception as e:
+            print(f"Error creating DeviceConnection: {e}")
 
     return jsonify({'success': True})
 
