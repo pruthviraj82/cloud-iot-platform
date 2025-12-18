@@ -6,3 +6,4 @@ numpy>=1.18
 pyserial>=3.4
 gunicorn>=20.0
 python-dotenv>=0.20
+requests>=2.0

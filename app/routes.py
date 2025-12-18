@@ -346,6 +346,52 @@ def api_device_status():
         'connected_devices': connected_devices
     })
 
+
+# Endpoint for local agents to forward serial data (secured with token)
+@routes.route("/api/forward-serial", methods=["POST"])
+def api_forward_serial():
+    """Receive forwarded serial lines from a local agent.
+    Expects header `X-DEVICE-AGENT-TOKEN` matching env var `DEVICE_AGENT_TOKEN`.
+    Body JSON: {"port": "COM3", "data": "line from device"}
+    """
+    token = request.headers.get('X-DEVICE-AGENT-TOKEN')
+    expected = os.getenv('DEVICE_AGENT_TOKEN')
+    if not expected or token != expected:
+        return jsonify({'success': False, 'message': 'Unauthorized'}), 401
+
+    try:
+        payload = request.get_json(force=True)
+    except Exception:
+        return jsonify({'success': False, 'message': 'Invalid JSON'}), 400
+
+    port = payload.get('port', 'agent')
+    data_line = payload.get('data') or payload.get('line')
+    if not data_line:
+        return jsonify({'success': False, 'message': 'No data provided'}), 400
+
+    # Ensure there's an entry for this port in the device manager
+    if port not in device_manager.connected_devices:
+        device_manager.connected_devices[port] = {
+            'serial': None,
+            'port': port,
+            'baudrate': None,
+            'connected_at': datetime.now(),
+            'last_data': None,
+            'data_count': 0
+        }
+
+    # Update stored info and let device manager process it for logging/parsing
+    device_manager.connected_devices[port]['last_data'] = data_line
+    device_manager.connected_devices[port]['data_count'] += 1
+    device_manager.connected_devices[port]['last_update'] = datetime.now()
+
+    try:
+        device_manager.process_incoming_data(port, data_line)
+    except Exception as e:
+        print(f"Error processing forwarded data: {e}")
+
+    return jsonify({'success': True})
+
 @routes.route("/api/live-data")
 @login_required
 def api_live_data():
