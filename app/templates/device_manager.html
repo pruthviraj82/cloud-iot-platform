@@ -193,7 +193,7 @@
     </div>
 
     <script>
-        const CSRF_TOKEN = '{{ csrf_token }}';
+        
 
         // Scan for available ports
         function scanPorts() {
@@ -213,7 +213,7 @@
             fetch('/api/connect-device', {
                 method: 'POST',
                 credentials: 'same-origin',
-                headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': CSRF_TOKEN },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ port: portName, baudrate: 9600 })
             })
             .then(response => response.json())
@@ -237,7 +237,7 @@
             fetch('/api/disconnect-device', {
                 method: 'POST',
                 credentials: 'same-origin',
-                headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': CSRF_TOKEN },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ port: portName })
             })
             .then(response => response.json())
@@ -265,7 +265,7 @@
             fetch('/api/send-command', {
                 method: 'POST',
                 credentials: 'same-origin',
-                headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': CSRF_TOKEN },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ port: portName, command: command })
             })
             .then(response => response.json())
@@ -349,7 +349,7 @@
                         fetch(serverUrl, {
                             method: 'POST',
                             credentials: 'same-origin',
-                            headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': CSRF_TOKEN },
+                            headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ port: portId, data: line })
                         }).then(resp => {
                         if (!resp.ok) console.error('Forward failed', resp.status, resp.statusText);
