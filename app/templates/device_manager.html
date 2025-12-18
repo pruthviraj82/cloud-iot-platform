@@ -197,7 +197,7 @@
 
         // Scan for available ports
         function scanPorts() {
-            fetch('/api/scan-ports')
+            fetch('/api/scan-ports', { credentials: 'same-origin' })
                 .then(response => response.json())
                 .then(data => {
                     alert('Ports scanned successfully!');
@@ -212,6 +212,7 @@
         function connectDevice(portName) {
             fetch('/api/connect-device', {
                 method: 'POST',
+                credentials: 'same-origin',
                 headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': CSRF_TOKEN },
                 body: JSON.stringify({ port: portName, baudrate: 9600 })
             })
@@ -235,6 +236,7 @@
             
             fetch('/api/disconnect-device', {
                 method: 'POST',
+                credentials: 'same-origin',
                 headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': CSRF_TOKEN },
                 body: JSON.stringify({ port: portName })
             })
@@ -262,6 +264,7 @@
             
             fetch('/api/send-command', {
                 method: 'POST',
+                credentials: 'same-origin',
                 headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': CSRF_TOKEN },
                 body: JSON.stringify({ port: portName, command: command })
             })
@@ -277,7 +280,7 @@
         
         // Live data updates
         function updateLiveData() {
-            fetch('/api/live-data')
+            fetch('/api/live-data', { credentials: 'same-origin' })
                 .then(response => response.json())
                 .then(data => {
                     data.forEach(device => {
